@@ -2,8 +2,11 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/garfunkel/go-tvdb"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -23,6 +26,26 @@ func digitsCleanup(num int) string {
 func strCleanupNonWord(str string) string {
 	regExp := regexp.MustCompile(`\W+`)
 	return strings.Trim(regExp.ReplaceAllString(str, " "), ` 	`)
+}
+
+func strCleanupSymbols(str string) string {
+	regExp := regexp.MustCompile(`[\\/$&?\*]`)
+	return regExp.ReplaceAllString(str, "_")
+}
+
+func renameShow(path string, showName string, season string, episode string,
+	episodeName string) (string, error) {
+	ext := filepath.Ext(path)
+	dir := filepath.Dir(path)
+	newName := strCleanupSymbols(showName + ".S" + season + "E" + episode + "." +
+		episodeName + ext)
+	newPath := filepath.Join(dir, newName)
+
+	if _, err := os.Stat(newPath); err == nil {
+		return newName, errors.New("Destination file already exists.")
+	}
+
+	return newName, os.Rename(path, newPath)
 }
 
 func ShowInfo(filename string) (string, int, int, error) {
@@ -45,49 +68,65 @@ func ShowInfo(filename string) (string, int, int, error) {
 			return "", 0, 0, err
 		}
 	}
-	return "", 0, 0, errors.New("No match returned.")
+	return "", 0, 0, errors.New("No filename pattern match found.")
 }
 
 func main() {
+	flag.Parse()
 	nameToShow := make(map[string]*tvdb.Series)
 	var currentSeries *tvdb.Series
-	showName, season, episode, err := ShowInfo("The.Big.Bang.Theory.Season 1 Episode 2.Release.1999.mp4")
 
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	for _, path := range flag.Args() {
+		fmt.Println("\nCurrent Name: ", filepath.Base(path))
+		showName, season, episode, err := ShowInfo(filepath.Base(path))
 
-	fmt.Println(showName, " ", season, " ", episode, " ")
-
-	seriesList, err := tvdb.GetSeries(showName)
-
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	if _, ok := nameToShow[showName]; !ok {
-		for index, series := range seriesList.Series {
-			fmt.Println("Match: ", index+1, " ", series.ID, " ", series.SeriesName)
-		}
-		fmt.Println("\nSelect match.")
-		i := -1
-		fmt.Scanf("%d", &i)
-		currentSeries = seriesList.Series[i-1]
-		nameToShow[showName] = currentSeries
-		if err := currentSeries.GetDetail(); err != nil {
+		if err != nil {
 			fmt.Println(err)
-			return
+			continue
 		}
-	} else {
-		currentSeries = nameToShow[showName]
+
+		fmt.Println("Show: ", showName, " Season: ", season, " Episode: ", episode)
+
+		if _, ok := nameToShow[showName]; !ok {
+			seriesList, err := tvdb.GetSeries(showName)
+
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+
+			if len(seriesList.Series) == 0 {
+				fmt.Println(errors.New("No match found."))
+				continue
+			}
+
+			for index, series := range seriesList.Series {
+				fmt.Println("\nTVDB Match: ", index+1, " Show: ", series.SeriesName, " ID: ", series.ID)
+			}
+
+			fmt.Println("\nSelect match:")
+			i := -1
+			fmt.Scanf("%d", &i)
+			currentSeries = seriesList.Series[i-1]
+			nameToShow[showName] = currentSeries
+			if err := currentSeries.GetDetail(); err != nil {
+				fmt.Println(err)
+				continue
+			}
+		} else {
+			currentSeries = nameToShow[showName]
+		}
+
+		newName, err := renameShow(path, currentSeries.SeriesName,
+			digitsCleanup(season),
+			digitsCleanup(episode),
+			currentSeries.Seasons[uint64(season)][episode-1].EpisodeName)
+
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		fmt.Println("New Name: ", newName)
 	}
-
-	fmt.Println(currentSeries.SeriesName)
-	fmt.Println(digitsCleanup(season))
-	fmt.Println(digitsCleanup(episode))
-	fmt.Println(currentSeries.Seasons[uint64(season)][episode-1].EpisodeName)
-	fmt.Println(currentSeries.Seasons[uint64(season)][episode-1].EpisodeNumber)
-
 }
