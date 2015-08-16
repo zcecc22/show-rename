@@ -29,7 +29,7 @@ func strCleanupNonWord(str string) string {
 }
 
 func strCleanupSymbols(str string) string {
-	regExp := regexp.MustCompile(`[\\/$&?\*]`)
+	regExp := regexp.MustCompile(`[/]`)
 	return regExp.ReplaceAllString(str, "_")
 }
 
