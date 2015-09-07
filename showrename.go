@@ -24,7 +24,7 @@ func digitsCleanup(num int) string {
 }
 
 func strCleanupNonWord(str string) string {
-	regExp := regexp.MustCompile(`\W+`)
+	regExp := regexp.MustCompile(`[\W_]+`)
 	return strings.Trim(regExp.ReplaceAllString(str, " "), ` 	`)
 }
 
