@@ -29,8 +29,10 @@ func strCleanupNonWord(str string) string {
 }
 
 func strCleanupSymbols(str string) string {
-	regExp := regexp.MustCompile(`[/:]`)
-	return regExp.ReplaceAllString(str, " ")
+	regExp_space := regexp.MustCompile(`[/]`)
+	regExp_nspace := regexp.MustCompile(`[:]`)
+	return regExp_nspace.ReplaceAllString(
+		regExp_space.ReplaceAllString(str, " "),"")
 }
 
 func renameShow(path string, showName string, season string, episode string,
