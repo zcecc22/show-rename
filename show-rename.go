@@ -4,16 +4,17 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/garfunkel/go-tvdb"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/garfunkel/go-tvdb"
+	"github.com/kennygrant/sanitize"
 )
 
-var showPatterns = []string{`(?i)S(\d{1,2})E(\d{1,2})`, `(?i)(\d{1,2})X(\d{1,2})`,
-	`(?i)Season (\d{1,2}) Episode (\d{1,2})`, `(?i)(\d{1})(\d{2})`}
+var showPatterns = []string{`(.*?)[\W\s][sS]?(\d{1,2})[xXeE]?(\d{1,2}).*`}
 
 func digitsCleanup(num int) string {
 	str := strconv.Itoa(num)
@@ -25,21 +26,14 @@ func digitsCleanup(num int) string {
 
 func strCleanupNonWord(str string) string {
 	regExp := regexp.MustCompile(`[\W_]+`)
-	return strings.Trim(regExp.ReplaceAllString(str, " "), ` 	`)
-}
-
-func strCleanupSymbols(str string) string {
-	regExp_space := regexp.MustCompile(`[/]`)
-	regExp_nspace := regexp.MustCompile(`[:]`)
-	return regExp_nspace.ReplaceAllString(
-		regExp_space.ReplaceAllString(str, " "),"")
+	return strings.Trim(regExp.ReplaceAllString(str, " "), `        `)
 }
 
 func renameShow(path string, showName string, season string, episode string,
 	episodeName string) (string, error) {
 	ext := filepath.Ext(path)
 	dir := filepath.Dir(path)
-	newName := strCleanupSymbols(showName + ".S" + season + "E" + episode + "." +
+	newName := sanitize.Path(showName + ".S" + season + "E" + episode + "." +
 		episodeName + ext)
 	newPath := filepath.Join(dir, newName)
 
@@ -52,22 +46,19 @@ func renameShow(path string, showName string, season string, episode string,
 
 func ShowInfo(filename string) (string, int, int, error) {
 	for _, curPattern := range showPatterns {
-		if matched, err := regexp.MatchString(curPattern, filename); err == nil && matched {
+		if matched, _ := regexp.MatchString(curPattern, filename); matched {
 			showName := ""
 			season := 0
 			episode := 0
-			err = nil
 
 			regExp := regexp.MustCompile(curPattern)
-			showName = strCleanupNonWord(regExp.Split(filename, -1)[0])
-			seasonEpisode := regExp.FindStringSubmatch(filename)[1:3]
+			splitMatch := regExp.FindStringSubmatch(filename)
 
-			season, err = strconv.Atoi(seasonEpisode[0])
-			episode, err = strconv.Atoi(seasonEpisode[1])
+			showName = strCleanupNonWord(splitMatch[1])
+			season, _ = strconv.Atoi(splitMatch[2])
+			episode, _ = strconv.Atoi(splitMatch[3])
 
-			return showName, season, episode, err
-		} else if err != nil {
-			return "", 0, 0, err
+			return showName, season, episode, nil
 		}
 	}
 	return "", 0, 0, errors.New("No filename pattern match found.")
@@ -119,16 +110,26 @@ func main() {
 			currentSeries = nameToShow[showName]
 		}
 
-		newName, err := renameShow(path, currentSeries.SeriesName,
-			digitsCleanup(season),
-			digitsCleanup(episode),
-			currentSeries.Seasons[uint64(season)][episode-1].EpisodeName)
+		if tvdbSeason, ok := currentSeries.Seasons[uint64(season)]; ok {
+			if len(tvdbSeason) >= (episode - 1) {
+				newName, err := renameShow(path, currentSeries.SeriesName,
+					digitsCleanup(season),
+					digitsCleanup(episode),
+					tvdbSeason[episode-1].EpisodeName)
 
-		if err != nil {
-			fmt.Println(err)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+
+				fmt.Println("New Name: ", newName)
+			} else {
+				fmt.Println("Episode not found.")
+				continue
+			}
+		} else {
+			fmt.Println("Season not found.")
 			continue
 		}
-
-		fmt.Println("New Name: ", newName)
 	}
 }
