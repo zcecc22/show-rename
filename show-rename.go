@@ -33,13 +33,13 @@ func renameShow(path string, showName string, season string, episode string,
 	episodeName string) (string, error) {
 	ext := filepath.Ext(path)
 	dir := filepath.Dir(path)
-	newName := sanitize.Path(showName + ".S" + season + "E" + episode + "." +
-		episodeName + ext)
-	newPath := filepath.Join(dir, newName)
+	newName := sanitize.Path(sanitize.BaseName(showName + ".S" + season + "E" + episode + "." +
+		episodeName))
+	newPath := filepath.Join(dir, newName+ext)
 	if _, err := os.Stat(newPath); err == nil {
-		return newName, errors.New("Destination file already exists.")
+		return newName + ext, errors.New("Destination file already exists.")
 	}
-	return newName, os.Rename(path, newPath)
+	return newName + ext, os.Rename(path, newPath)
 }
 
 func ShowInfo(filename string) (string, int, int, error) {
