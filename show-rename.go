@@ -45,14 +45,11 @@ func renameShow(path string, showName string, season string, episode string,
 func ShowInfo(filename string) (string, int, int, error) {
 	for _, curPattern := range showPatterns {
 		if matched, _ := regexp.MatchString(curPattern, filename); matched {
-			showName := ""
-			season := 0
-			episode := 0
 			regExp := regexp.MustCompile(curPattern)
 			splitMatch := regExp.FindStringSubmatch(filename)
-			showName = strCleanupNonWord(splitMatch[1])
-			season, _ = strconv.Atoi(splitMatch[2])
-			episode, _ = strconv.Atoi(splitMatch[3])
+			showName := strCleanupNonWord(splitMatch[1])
+			season, _ := strconv.Atoi(splitMatch[2])
+			episode, _ := strconv.Atoi(splitMatch[3])
 			return showName, season, episode, nil
 		}
 	}
